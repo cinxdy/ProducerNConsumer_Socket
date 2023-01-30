@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
+using System.Collections.Generic;
 
 using NetMQ;
 using NetMQ.Sockets;
@@ -19,49 +20,66 @@ namespace Monitor
 
         class Monitor
         {
+            private Queue<NetMQMessage> msgQ;
             public void run()
             {
-
-                Random rand = new Random();
-                int item = default;
-
-                using (var sender = new RouterSocket("@tcp://*:5557"))
-                using (var controller = new SubscriberSocket())
+                using (var rxFromProducer = new RouterSocket("@tcp://*:5555"))
+                using (var rxFromConsumer = new RouterSocket("@tcp://*:5556"))
+                using (var controller = new PublisherSocket("@tcp://*:5557"))
+                using (var poller = new NetMQPoller { rxFromProducer, rxFromConsumer, controller })
                 {
+                    rxFromProducer.ReceiveReady += (s, a) =>
+                    {
+                        //var message = receiver.;
+                        var msgFromProducer = rxFromProducer.ReceiveMultipartMessage();
+
+                        msgQ.Enqueue(msgFromProducer);
+                        
+                        
+                    };
+
+                    rxFromConsumer.ReceiveReady += (s, a) =>
+                    {
+                        var msgFromConsumer = rxFromProducer.ReceiveMultipartMessage();
+                        var id = msgFromConsumer.Pop(); msgFromConsumer.Pop();
+
+                        if (!msgFromConsumer.Pop().ToString().Equals("READY"))
+                        {
+                            var msgToConsumer = new NetMQMessage();
+                            msgToConsumer.Append(id);
+                            msgToConsumer.AppendEmptyFrame();
+
+                            msgToConsumer.Append(msgQ.Dequeue());
+
+                            rxFromProducer.SendMultipartMessage(msgToConsumer);
+                            Console.WriteLine("Sent Done\n\n");
+                        }
+                    };
+
+                    controller.ReceiveReady += (s, a) =>
+                    {
+
+                    };
+
+                    poller.Run();
+
                     // Connect
                     //sender.Connect("tcp://127.0.0.1:5557");
-                    controller.Connect("tcp://127.0.0.1:5558");
-                    controller.Subscribe("wake producer");
+                    //controller.Connect("tcp://127.0.0.1:5558");
+                    //controller.Subscribe("wake producer");
 
-                    Console.WriteLine("Producer Connecting...");
+                    //Console.WriteLine("Producer Connecting...");
 
                     // Wait Publish (Sleep)
-                    Console.WriteLine("Waiting the signal...");
+                    //Console.WriteLine("Waiting the signal...");
 
                     //string messageTopicReceived = ;
                     //string messageReceived = controller.ReceiveFrameString();
                     //Console.WriteLine(messageReceived);
 
                     // if signaled
-                    while (controller.ReceiveFrameString() != "wake producer")
-                        ;
-
-                    // produce one
-                    item = rand.Next(1, 1000);
-                    Console.WriteLine($"\t{item} was produced\n");
-
-                    // send
-                    // if okay : take a break
-                    // if not okay : retry
-                    while (true)
-                    {
-                        sender.SendFrame(item.ToString());
-                        if (sender.ReceiveSignal()) break;
-                        Task.Delay(1000).Wait();
-                    }
-
-                    int sleep = rand.Next(1, 5) * 1000;
-                    Task.Delay(sleep).Wait();
+                    //while (controller.ReceiveFrameString() != "wake producer")
+                    //    ;
                 }
 
             }
