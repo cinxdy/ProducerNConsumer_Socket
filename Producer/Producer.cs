@@ -7,6 +7,7 @@ using System.Threading;
 using NetMQ;
 using NetMQ.Sockets;
 using System.Diagnostics;
+using System.Text;
 
 namespace Producer
 {
@@ -16,59 +17,59 @@ namespace Producer
         {
             Random rand = new Random();
 
-            using (var sender = new RequestSocket(">tcp://localhost:5555"))
-            using (var controller = new SubscriberSocket(">tcp://localhost:5557"))
+            using var sender = new RequestSocket(">tcp://localhost:5555");
+            using var controller = new SubscriberSocket(">tcp://localhost:5557");
+
+            sender.Options.Identity = Encoding.UTF8.GetBytes("Producer1");
+            // Connect
+            controller.Subscribe("wake producer");
+
+            Debug.WriteLine("Producer Connecting...");
+
+            // Wait Publish (Sleep)
+            //Debug.WriteLine("Waiting the signal...");
+
+            //string messageTopicReceived = ;
+            //string messageReceived = controller.ReceiveFrameString();
+            //Console.WriteLine(messageReceived);
+
+            // if signaled
+            //while (controller.ReceiveFrameString() != "wake producer")
+            //;
+            var threadId = Thread.CurrentThread.ManagedThreadId;
+            // produce one
+            while (true)
             {
-                // Connect
-                controller.Subscribe("wake producer");
+                int item1 = rand.Next(1, 1000);
+                int item2 = rand.Next(1, 1000);
 
-                Debug.WriteLine("Producer Connecting...");
+                Console.WriteLine($"{threadId}\t{item1} + {item2} = ?");
 
-                // Wait Publish (Sleep)
-                //Debug.WriteLine("Waiting the signal...");
+                // Send
+                var msgToMonitor = new NetMQMessage();
+                msgToMonitor.Append(item1);
+                msgToMonitor.Append(item2);
 
-                //string messageTopicReceived = ;
-                //string messageReceived = controller.ReceiveFrameString();
-                //Console.WriteLine(messageReceived);
+                sender.SendMultipartMessage(msgToMonitor);
 
-                // if signaled
-                //while (controller.ReceiveFrameString() != "wake producer")
-                //;
-                var threadId = Thread.CurrentThread.ManagedThreadId;
-                // produce one
-                while (true)
-                {
-                    int item1 = rand.Next(1, 1000);
-                    int item2 = rand.Next(1, 1000);
+                Console.WriteLine($"Sent msg producer -> monitor: {msgToMonitor}");
 
-                    Debug.WriteLine($"{threadId}\t{item1} + {item2} was produced");
+                // Receive
+                var msgFromMonitor = sender.ReceiveFrameString();
+                Console.WriteLine($"Received msg producer <- monitor: {msgFromMonitor}\n\n");
 
-                    // Send
-                    var msgToMonitor = new NetMQMessage();
-                    msgToMonitor.Append(item1);
-                    msgToMonitor.Append(item2);
-
-                    sender.SendMultipartMessage(msgToMonitor);
-
-                    Console.WriteLine($"Sent msg producer -> monitor: {msgToMonitor}");
-
-                    // Receive
-                    var msgFromMonitor = sender.ReceiveFrameString();
-                    Console.WriteLine($"Received msg producer <- monitor: {msgFromMonitor}\n\n");
-
-                    int sleep = rand.Next(1, 5) * 1000;
-                    Task.Delay(sleep).Wait();
-                }
-
-                // if okay : take a break
-                // if not okay : retry
-                //while (true)
-                //{
-                //    sender.SendFrame(item.ToString());
-                //    if (sender.ReceiveSignal()) break;
-                //    Task.Delay(1000).Wait();
-                //}
+                int sleep = rand.Next(1, 5) * 1000;
+                Task.Delay(sleep).Wait();
             }
+
+            // if okay : take a break
+            // if not okay : retry
+            //while (true)
+            //{
+            //    sender.SendFrame(item.ToString());
+            //    if (sender.ReceiveSignal()) break;
+            //    Task.Delay(1000).Wait();
+            //}
         }
     }
 
