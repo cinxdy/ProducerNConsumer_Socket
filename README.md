@@ -1,6 +1,6 @@
 # Load balancing server using netMQ
 
-![img.png]
+![IMG](./img.png)
 
 ## Role of processes
 ### Producer
